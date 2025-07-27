@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>热榜聚合 - 知乎·小红书·微博</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="title">
+                <i class="fas fa-fire"></i>
+                热榜聚合
+            </h1>
+            <p class="subtitle">实时追踪知乎、小红书、微博热门话题</p>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div class="platforms">
+                <!-- 知乎热榜 -->
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <div class="platform-icon zhihu">
+                            <i class="fas fa-lightbulb"></i>
+                        </div>
+                        <h2>知乎热榜</h2>
+                        <div class="refresh-btn" onclick="refreshPlatform('zhihu')">
+                            <i class="fas fa-sync-alt"></i>
+                        </div>
+                    </div>
+                    <div class="hot-list" id="zhihu-list">
+                        <div class="loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>加载中...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 小红书热榜 -->
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <div class="platform-icon xiaohongshu">
+                            <i class="fas fa-heart"></i>
+                        </div>
+                        <h2>小红书热榜</h2>
+                        <div class="refresh-btn" onclick="refreshPlatform('xiaohongshu')">
+                            <i class="fas fa-sync-alt"></i>
+                        </div>
+                    </div>
+                    <div class="hot-list" id="xiaohongshu-list">
+                        <div class="loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>加载中...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 微博热榜 -->
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <div class="platform-icon weibo">
+                            <i class="fas fa-comment"></i>
+                        </div>
+                        <h2>微博热榜</h2>
+                        <div class="refresh-btn" onclick="refreshPlatform('weibo')">
+                            <i class="fas fa-sync-alt"></i>
+                        </div>
+                    </div>
+                    <div class="hot-list" id="weibo-list">
+                        <div class="loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 热榜聚合. 数据来源于各平台公开API</p>
+            <p class="update-time">最后更新: <span id="last-update">--</span></p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
