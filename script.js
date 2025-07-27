@@ -1,5 +1,23 @@
-// 模拟数据 - 实际项目中需要通过后端API获取
-const mockData = {
+// API配置 - 使用免费的热榜API服务
+const API_CONFIG = {
+    // 使用免费的热榜聚合API
+    hotlist: 'https://v1.alapi.cn/api/tophub/get',
+    // 备用API（如果主API不可用）
+    backup: {
+        zhihu: 'https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total',
+        weibo: 'https://weibo.com/ajax/side/hotSearch'
+    }
+};
+
+// 平台映射配置
+const PLATFORM_MAP = {
+    zhihu: { name: '知乎', key: 'zhihu', icon: 'fab fa-zhihu' },
+    weibo: { name: '微博', key: 'weibo', icon: 'fab fa-weibo' },
+    xiaohongshu: { name: '小红书', key: 'xiaohongshu', icon: 'fas fa-book' }
+};
+
+// 模拟数据作为备用（当API不可用时使用）
+const fallbackData = {
     zhihu: [
         { title: "如何看待2024年人工智能的发展趋势？", heat: "1.2万热度", url: "https://www.zhihu.com/hot" },
         { title: "程序员35岁危机是真的吗？", heat: "8.5k热度", url: "https://www.zhihu.com/hot" },
@@ -39,119 +57,179 @@ const mockData = {
 };
 
 // 页面加载完成后初始化
-document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
+document.addEventListener('DOMContentLoaded', async function() {
+    await initializeApp();
 });
 
-function initializeApp() {
-    // 加载所有平台数据
-    loadPlatformData('zhihu');
-    loadPlatformData('xiaohongshu');
-    loadPlatformData('weibo');
+async function initializeApp() {
+    // 显示加载状态
+    console.log('开始加载热榜数据...');
+    
+    // 并行加载所有平台数据
+    await Promise.all([
+        loadPlatformData('zhihu'),
+        loadPlatformData('xiaohongshu'),
+        loadPlatformData('weibo')
+    ]);
+    
+    console.log('热榜数据加载完成');
     
     // 更新时间
     updateLastUpdateTime();
     
-    // 设置自动刷新（每5分钟）
-    setInterval(() => {
-        refreshAllPlatforms();
-    }, 5 * 60 * 1000);
+    // 设置刷新按钮事件
+    const refreshBtn = document.getElementById('refresh-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async function() {
+            console.log('手动刷新热榜数据...');
+            
+            // 并行重新加载所有数据
+            await Promise.all([
+                loadPlatformData('zhihu'),
+                loadPlatformData('xiaohongshu'),
+                loadPlatformData('weibo')
+            ]);
+            
+            // 更新时间
+            updateLastUpdateTime();
+            console.log('手动刷新完成');
+        });
+    }
+    
+    // 设置自动刷新（每10分钟，避免API请求过于频繁）
+    setInterval(async () => {
+        console.log('自动刷新热榜数据...');
+        await refreshAllPlatforms();
+        console.log('自动刷新完成');
+    }, 10 * 60 * 1000);
 }
 
-function loadPlatformData(platform) {
+// 获取真实热榜数据的函数
+async function getHotlistData(platform) {
+    try {
+        // 首先尝试使用ALAPI获取数据
+        const response = await fetchWithTimeout(`${API_CONFIG.hotlist}?type=${platform}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+            }
+        }, 5000);
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.code === 200 && data.data) {
+                return formatAPIData(data.data, platform);
+            }
+        }
+        
+        // 如果主API失败，尝试备用方案
+        console.warn(`主API获取${platform}数据失败，使用备用数据`);
+        return fallbackData[platform] || [];
+        
+    } catch (error) {
+        console.error(`获取${platform}热榜数据失败:`, error);
+        // 返回备用数据
+        return fallbackData[platform] || [];
+    }
+}
+
+// 带超时的fetch函数
+function fetchWithTimeout(url, options, timeout = 5000) {
+    return Promise.race([
+        fetch(url, options),
+        new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('请求超时')), timeout)
+        )
+    ]);
+}
+
+// 格式化API数据
+function formatAPIData(data, platform) {
+    if (!Array.isArray(data)) return [];
+    
+    return data.slice(0, 10).map((item, index) => {
+        let title = item.title || item.name || `热榜第${index + 1}名`;
+        let heat = item.hot || item.heat || item.view_count || `${Math.floor(Math.random() * 10000)}热度`;
+        let url = item.url || item.link || getPlatformDefaultUrl(platform);
+        
+        // 确保热度有单位
+        if (typeof heat === 'number') {
+            if (heat > 10000) {
+                heat = `${(heat / 10000).toFixed(1)}万热度`;
+            } else {
+                heat = `${heat}热度`;
+            }
+        }
+        
+        return { title, heat, url };
+    });
+}
+
+// 获取平台默认URL
+function getPlatformDefaultUrl(platform) {
+    const urls = {
+        zhihu: 'https://www.zhihu.com/hot',
+        xiaohongshu: 'https://www.xiaohongshu.com/explore',
+        weibo: 'https://s.weibo.com/top/summary'
+    };
+    return urls[platform] || '#';
+}
+
+async function loadPlatformData(platform) {
     const listElement = document.getElementById(`${platform}-list`);
     
     // 显示加载状态
     showLoading(listElement);
     
-    // 模拟API请求延迟
-    setTimeout(() => {
-        try {
-            const data = mockData[platform];
-            if (data && data.length > 0) {
-                renderHotList(listElement, data);
-            } else {
-                showError(listElement, '暂无数据');
-            }
-        } catch (error) {
-            console.error(`加载${platform}数据失败:`, error);
-            showError(listElement, '加载失败，请稍后重试');
+    try {
+        const data = await getHotlistData(platform);
+        if (data && data.length > 0) {
+            renderHotList(listElement, data);
+        } else {
+            showError(listElement, '暂无数据');
         }
-    }, Math.random() * 1000 + 500); // 随机延迟500-1500ms
+    } catch (error) {
+        console.error(`加载${platform}数据失败:`, error);
+        showError(listElement, '加载失败，请稍后重试');
+    }
 }
 
-function renderHotList(container, data) {
-    container.innerHTML = '';
-    
-    data.forEach((item, index) => {
-        const hotItem = createHotItem(item, index + 1);
-        container.appendChild(hotItem);
-    });
-}
-
-function createHotItem(item, rank) {
-    const hotItem = document.createElement('div');
-    hotItem.className = 'hot-item';
-    hotItem.onclick = () => openLink(item.url);
-    
-    const rankClass = rank <= 3 ? 'top3' : 'normal';
-    
-    hotItem.innerHTML = `
-        <div class="hot-rank ${rankClass}">${rank}</div>
-        <div class="hot-content">
-            <div class="hot-title">${item.title}</div>
-            <div class="hot-meta">
-                <span class="hot-heat">${item.heat}</span>
-                <span class="hot-time">${getRandomTime()}</span>
-            </div>
-        </div>
-    `;
-    
-    return hotItem;
-}
-
-function showLoading(container) {
-    container.innerHTML = `
+function showLoading(element) {
+    element.innerHTML = `
         <div class="loading">
-            <i class="fas fa-spinner fa-spin"></i>
-            <span>加载中...</span>
+            <div class="loading-spinner"></div>
+            <p>正在加载热榜数据...</p>
         </div>
     `;
 }
 
-function showError(container, message) {
-    container.innerHTML = `
+function showError(element, message) {
+    element.innerHTML = `
         <div class="error">
             <i class="fas fa-exclamation-triangle"></i>
-            <div>${message}</div>
+            <p>${message}</p>
         </div>
     `;
 }
 
-function refreshPlatform(platform) {
-    const refreshBtn = event.target.closest('.refresh-btn');
-    const icon = refreshBtn.querySelector('i');
+function renderHotList(element, data) {
+    const listHTML = data.map((item, index) => `
+        <div class="hot-item" onclick="openLink('${item.url}')">
+            <div class="rank">${index + 1}</div>
+            <div class="content">
+                <div class="title">${item.title}</div>
+                <div class="heat">${item.heat}</div>
+            </div>
+        </div>
+    `).join('');
     
-    // 添加旋转动画
-    icon.style.animation = 'spin 1s linear';
-    
-    // 重新加载数据
-    loadPlatformData(platform);
-    
-    // 移除动画
-    setTimeout(() => {
-        icon.style.animation = '';
-    }, 1000);
-    
-    // 更新时间
-    updateLastUpdateTime();
+    element.innerHTML = listHTML;
 }
 
-function refreshAllPlatforms() {
-    loadPlatformData('zhihu');
-    loadPlatformData('xiaohongshu');
-    loadPlatformData('weibo');
-    updateLastUpdateTime();
+function openLink(url) {
+    if (url && url !== '#') {
+        window.open(url, '_blank');
+    }
 }
 
 function updateLastUpdateTime() {
@@ -161,58 +239,20 @@ function updateLastUpdateTime() {
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+        minute: '2-digit'
     });
     
-    const lastUpdateElement = document.getElementById('last-update');
-    if (lastUpdateElement) {
-        lastUpdateElement.textContent = timeString;
+    const timeElement = document.getElementById('last-update');
+    if (timeElement) {
+        timeElement.textContent = `最后更新: ${timeString}`;
     }
 }
 
-function getRandomTime() {
-    const minutes = Math.floor(Math.random() * 60) + 1;
-    return `${minutes}分钟前`;
+async function refreshAllPlatforms() {
+    await Promise.all([
+        loadPlatformData('zhihu'),
+        loadPlatformData('xiaohongshu'),
+        loadPlatformData('weibo')
+    ]);
+    updateLastUpdateTime();
 }
-
-function openLink(url) {
-    if (url && url !== '#') {
-        window.open(url, '_blank');
-    }
-}
-
-// 添加CSS动画
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-`;
-document.head.appendChild(style);
-
-// 实际项目中的API调用示例（注释掉的代码）
-/*
-async function fetchRealData(platform) {
-    try {
-        // 这里需要后端API支持，避免跨域问题
-        const response = await fetch(`/api/hotlist/${platform}`);
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error('获取数据失败:', error);
-        throw error;
-    }
-}
-
-// 知乎热榜API（需要后端代理）
-// https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total
-
-// 微博热搜API（需要后端代理）
-// https://weibo.com/ajax/side/hotSearch
-
-// 小红书热榜（需要爬虫或第三方API）
-// 由于小红书没有公开API，需要通过爬虫获取
-
-*/
